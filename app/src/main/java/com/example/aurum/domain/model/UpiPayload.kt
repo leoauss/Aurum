@@ -20,9 +20,18 @@ data class UpiPayload(
     val txnRef: String? = null,
     val rawUri: String
 ) {
+
+    init {
+        if (amount != null) {
+            require(amount > BigDecimal.ZERO && amount.stripTrailingZeros().scale() <= 2) {
+                "UpiPayload amount must be positive and have at most 2 decimal places: $amount"
+            }
+        }
+    }
+    
     /**
      * Helper to get the amount converted to paise (1 INR = 100 paise), or null if amount is not specified.
      */
     val amountPaise: Long?
-        get() = amount?.movePointRight(2)?.toLong()
+        get() = amount?.movePointRight(2)?.longValueExact()
 }

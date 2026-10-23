@@ -154,7 +154,7 @@ Create the following data classes/sealed interfaces in `domain/model/`:
 | File | Contents |
 |---|---|
 | `UpiPayload.kt` | `data class UpiPayload(vpa, payeeName, amount: BigDecimal?, note, txnRef, rawUri)` |
-| `UpiApp.kt` | `data class UpiApp(packageName, label, icon: Drawable?)` |
+| `UpiApp.kt` | `data class UpiApp(packageName, label)` (icon resolved in UI layer) |
 | `PaymentOutcome.kt` | `sealed interface PaymentOutcome { Success, Pending, Failed, Unconfirmed }` |
 | `Transaction.kt` | `data class Transaction(id, vpa, payeeName, amountPaise, note, …, status, createdAt, updatedAt)` |
 | `TransactionStatus.kt` | `enum: INITIATED, SUCCESS, PENDING, FAILED, UNCONFIRMED, USER_CONFIRMED_PAID` |
