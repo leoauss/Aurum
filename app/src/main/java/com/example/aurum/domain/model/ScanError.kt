@@ -16,3 +16,5 @@ sealed interface ScanError {
     /** Amount in QR code is invalid (e.g. non-numeric, negative, or >2 decimal places). */
     data object InvalidAmount : ScanError
 }
+
+class ScanException(val error: ScanError) : IllegalArgumentException("UPI QR scan error: $error")
