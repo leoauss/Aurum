@@ -1,22 +1,24 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
 }
 
 android {
-    namespace = "com.example.myapplication"
+    namespace = "com.example.aurum"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.myapplication"
-        minSdk = 24
+        applicationId = "com.example.aurum"
+        minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.google.dagger.hilt.android.testing.HiltTestRunner"
     }
 
     buildTypes {
@@ -37,23 +39,56 @@ android {
 }
 
 dependencies {
-    implementation("io.coil-kt.coil3:coil-compose:3.0.4")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
+    // ── Compose BOM + Core UI ──────────────────────────────────────────────
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.ui.text.google.fonts)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.material3)
-    implementation(libs.androidx.ui.graphics)
+
+    // ── Navigation ────────────────────────────────────────────────────────
+    implementation(libs.androidx.navigation.compose)
+
+    // ── CameraX ───────────────────────────────────────────────────────────
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
+
+    // ── ML Kit Barcode Scanning (bundled) ─────────────────────────────────
+    implementation(libs.mlkit.barcode.scanning)
+
+    // ── Hilt ──────────────────────────────────────────────────────────────
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.hilt.navigation.compose)
+
+    // ── Room ──────────────────────────────────────────────────────────────
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    // ── DataStore ─────────────────────────────────────────────────────────
+    implementation(libs.datastore.preferences)
+
+    // ── Unit tests ────────────────────────────────────────────────────────
     testImplementation(libs.junit)
+    testImplementation(libs.turbine)
+
+    // ── Android / instrumented tests ──────────────────────────────────────
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.espresso.intents)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
+
+    // ── Debug ─────────────────────────────────────────────────────────────
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
