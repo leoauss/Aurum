@@ -50,20 +50,24 @@ class ParseUpiQr @Inject constructor() {
             return failure(ScanError.UnsupportedCurrency)
         }
 
-        // 3. Validate Amount ('am') — optional, but if present must be > 0, <= 2 decimals, <= max cap
+        // 3. Validate Amount ('am') — optional.
+        // If am=0 or am=0.00, treat as null (open/dynamic amount for Indian POS QR codes).
+        // If present and non-zero: must be > 0, <= 2 significant decimal places, <= max cap.
         val rawAmount = params["am"]?.let(::sanitizeControlChars)?.trim()
         val amount: BigDecimal? = if (!rawAmount.isNullOrEmpty()) {
             val parsed = rawAmount.toBigDecimalOrNull()
                 ?: return failure(ScanError.InvalidAmount)
 
-            if (parsed <= BigDecimal.ZERO ||
-                parsed.scale() > 2 ||
+            if (parsed.compareTo(BigDecimal.ZERO) == 0) {
+                null
+            } else if (parsed < BigDecimal.ZERO ||
                 parsed.stripTrailingZeros().scale() > 2 ||
                 parsed > MAX_QR_AMOUNT
             ) {
                 return failure(ScanError.InvalidAmount)
+            } else {
+                parsed
             }
-            parsed
         } else {
             null
         }

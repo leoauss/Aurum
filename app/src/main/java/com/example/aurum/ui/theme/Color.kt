@@ -1,5 +1,6 @@
 package com.example.aurum.ui.theme
 
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.Color
  * - accent (0xFF8B610E) against surface (0xFFFCFDFD): ~5.5:1 (passes 4.5:1 requirement)
  * - error (0xFFAB2138) against surface (0xFFFCFDFD): ~7.0:1 (passes 4.5:1 requirement)
  */
+@Immutable
 data class ColorTokens(
     val brand: Color,
     val onBrand: Color,

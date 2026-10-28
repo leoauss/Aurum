@@ -169,14 +169,14 @@ Created data classes and sealed interfaces in `domain/model/`:
     - Scheme must be `upi`, host must be `pay`.
     - `pa` (VPA) is required and validated with `^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$`.
     - `cu` must be `INR` (case-insensitive) or absent.
-    - `am` must be a positive number with <= 2 decimal places, sanity-capped at ₹10,00,000.
+    - `am` must be a positive number with <= 2 significant decimal places (relying solely on `stripTrailingZeros().scale() <= 2`), sanity-capped at ₹10,00,000. `am=0` or `am=0.00` is treated as a dynamic/user-entered open amount (`amount = null`).
     - Strips ASCII control characters and caps lengths for `pn`, `tn`, and `tr`.
   - Returns `Result<UpiPayload>` (success or typed `ScanError` failure).
 
 - **2.2.2 Unit test `ParseUpiQr`** ✅
   - File: `test/java/com/example/aurum/domain/usecase/ParseUpiQrTest.kt`
-  - 32 JVM unit tests covering: minimal QR, full merchant QR, case-insensitive scheme, absent currency, URL-encoded fields, unexpected query parameters, decimal validations, invalid schemes/hosts, malformed VPAs, non-INR currencies, negative/zero/high amounts, control character sanitization.
-  - Verified: 32 tests executed, 0 failures, 0 errors.
+  - 34 JVM unit tests covering: minimal QR, full merchant QR, case-insensitive scheme, absent currency, URL-encoded fields, unexpected query parameters, decimal validations with `stripTrailingZeros`, dynamic null amount for `am=0` and `am=0.00`, invalid schemes/hosts, malformed VPAs, non-INR currencies, negative/high amounts, control character sanitization.
+  - Verified: 34 tests executed, 0 failures, 0 errors.
 
 ### 2.3 Implement `ValidateAmount` use case ✅
 
@@ -246,46 +246,60 @@ Created data classes and sealed interfaces in `domain/model/`:
 
 ---
 
-## Step 3 — Data Layer (Room, DataStore, PackageManager)
+## Step 3 — Data Layer (Room, DataStore, PackageManager) ✅
 
 Wire up persistence and platform access behind the repository interfaces.
 
-### 3.1 Room database setup
-- `data/db/TransactionEntity.kt` — Room entity mapping to the `Transaction` domain model.
-  - `id` (UUID String, primary key), `vpa`, `payeeName`, `amountPaise` (Long), `note`, `qrTxnRef`, `upiTxnId`, `appPackage`, `status` (enum stored as String), `createdAt`, `updatedAt`.
-- `data/db/TransactionDao.kt` — DAO with:
-  - `insertTransaction(entity)`
-  - `updateStatus(id, status, upiTxnId?, updatedAt)`
-  - `getAllTransactions(): Flow<List<TransactionEntity>>` (ordered by `createdAt DESC`)
-  - `getInitiatedTransactions(): List<TransactionEntity>` (for reconciliation)
-  - `deleteAll()`
-- `data/db/AppDatabase.kt` — `@Database` annotated abstract class with version 1.
+### 3.1 Room database setup ✅
 
-### 3.2 TransactionRepository implementation
-- `data/db/TransactionRepositoryImpl.kt`
-- Maps between `TransactionEntity` ↔ `Transaction` domain model.
-- Implements the `TransactionRepository` interface from the domain layer.
+- **3.1.1 Implement `TransactionEntity.kt`** ✅
+  - File: `data/db/TransactionEntity.kt`
+  - Table name `transactions` with `@PrimaryKey id: String`.
+  - Column mappings: `vpa`, `payee_name`, `amount_paise`, `note`, `qr_txn_ref`, `upi_txn_id`, `app_package`, `status`, `created_at`, `updated_at`.
+  - Indices on `status` and `created_at`.
+  - Extension mappers: `TransactionEntity.toDomain(): Transaction` and `Transaction.toEntity(): TransactionEntity` with safe enum fallback to `UNCONFIRMED`.
 
-### 3.3 DataStore preferences
-- `data/prefs/PreferencesRepositoryImpl.kt`
-- Keys: `LAST_USED_UPI_APP` (String — package name).
-- Implements `PreferencesRepository`.
+- **3.1.2 Implement `TransactionDao.kt`** ✅
+  - File: `data/db/TransactionDao.kt`
+  - `@Insert(onConflict = OnConflictStrategy.REPLACE)` `insertTransaction(entity)`
+  - `@Query("UPDATE transactions SET status = :status, upi_txn_id = COALESCE(:upiTxnId, upi_txn_id), updated_at = :updatedAt WHERE id = :id")`
+  - `@Query("SELECT * FROM transactions ORDER BY created_at DESC")` `fun getAllTransactions(): Flow<List<TransactionEntity>>`
+  - `@Query("SELECT * FROM transactions WHERE status = 'INITIATED' ORDER BY created_at DESC")` `suspend fun getInitiatedTransactions()`
+  - `@Query("DELETE FROM transactions")` `suspend fun deleteAll()`
 
-### 3.4 UPI app repository
-- `data/upi/UpiAppRepositoryImpl.kt`
-- Uses `PackageManager.queryIntentActivities()` with a probe `upi://pay` intent.
-- Maps `ResolveInfo` → `UpiApp` domain model.
-- Sorts results: last-used app first, then alphabetical.
+- **3.1.3 Implement `AppDatabase.kt`** ✅
+  - File: `data/db/AppDatabase.kt`
+  - `@Database(entities = [TransactionEntity::class], version = 1, exportSchema = false)`
+  - Abstract getter: `abstract fun transactionDao(): TransactionDao`.
 
-### 3.5 Hilt DI modules
-- `di/DatabaseModule.kt` — provides `AppDatabase`, `TransactionDao`.
-- `di/RepositoryModule.kt` — binds `*Impl` to interfaces.
-- `di/DataStoreModule.kt` — provides the `DataStore<Preferences>` singleton.
+### 3.2 Implement `TransactionRepositoryImpl` ✅
+- File: `data/db/TransactionRepositoryImpl.kt`
+- Implements `TransactionRepository` domain contract.
+- Maps between `TransactionEntity` and domain `Transaction`.
+- Exposes `getAllTransactions()` as `Flow<List<Transaction>>`.
 
-### ✅ Acceptance
-- Room database creates, migrates, and round-trips entities correctly.
-- DataStore reads/writes the last-used app.
-- `UpiAppRepositoryImpl` returns a list on a real device.
+### 3.3 Implement `PreferencesRepositoryImpl` ✅
+- File: `data/prefs/PreferencesRepositoryImpl.kt`
+- Uses Jetpack DataStore Preferences (`aurum_preferences`).
+- Key: `KEY_LAST_USED_UPI_APP`.
+- Emits updates via `Flow<String?>` and maintains in-memory `lastUsedAppCached` for non-blocking reads.
+
+### 3.4 Implement `UpiAppRepositoryImpl` ✅
+- File: `data/upi/UpiAppRepositoryImpl.kt`
+- Uses `PackageManager.queryIntentActivities()` with `upi://pay` probe intent.
+- Supports both Android 13+ (`PackageManager.ResolveInfoFlags`) and legacy APIs.
+- Filters out self, removes duplicates by package name.
+- Sorts results prioritizing the last-used app first, followed by alphabetical order.
+
+### 3.5 Configure Hilt DI modules ✅
+- `di/DatabaseModule.kt`: Provides `AppDatabase` singleton with destructive migration fallback and `TransactionDao`.
+- `di/DataStoreModule.kt`: Provides `DataStore<Preferences>` singleton.
+- `di/RepositoryModule.kt`: Binds `TransactionRepositoryImpl`, `PreferencesRepositoryImpl`, and `UpiAppRepositoryImpl` to their domain interfaces.
+
+### ✅ Step 3 Acceptance Complete
+- [x] Room database entity, DAO, and database compile cleanly with KSP.
+- [x] Unit tests for entity mapping (`TransactionEntityTest`), repository operations (`TransactionRepositoryImplTest`), and preference storage (`PreferencesRepositoryImplTest`) pass with 100% success.
+- [x] Debug APK assembled successfully (`:app:assembleDebug`) with all Hilt components, Room DAO implementations, and dex artifacts generated.
 
 ---
 

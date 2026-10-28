@@ -21,5 +21,11 @@ interface PreferencesRepository {
      * @param packageName Package name to save (e.g. `"net.one97.paytm"`).
      */
     suspend fun setLastUsedUpiApp(packageName: String)
+
+    /**
+     * Synchronous in-memory cached value of the last used UPI app package name, if known.
+     */
+    val lastUsedAppCached: String?
+        get() = null
 }
 

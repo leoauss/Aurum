@@ -197,8 +197,24 @@ class ParseUpiQrTest {
     }
 
     @Test
-    fun `zero amount returns InvalidAmount`() {
-        assertScanError("upi://pay?pa=user@upi&am=0", ScanError.InvalidAmount)
+    fun `zero amount (am=0) is treated as dynamic null amount`() {
+        val result = parseUpiQr("upi://pay?pa=user@upi&am=0")
+        assertTrue(result.isSuccess)
+        assertNull(result.getOrThrow().amount)
+    }
+
+    @Test
+    fun `zero decimal amount (am=0_00) is treated as dynamic null amount`() {
+        val result = parseUpiQr("upi://pay?pa=user@upi&am=0.00")
+        assertTrue(result.isSuccess)
+        assertNull(result.getOrThrow().amount)
+    }
+
+    @Test
+    fun `amount with trailing zeros beyond 2 decimals relies on stripTrailingZeros and succeeds`() {
+        val result = parseUpiQr("upi://pay?pa=user@upi&am=10.500")
+        assertTrue(result.isSuccess)
+        assertEquals(BigDecimal("10.500"), result.getOrThrow().amount)
     }
 
     @Test
