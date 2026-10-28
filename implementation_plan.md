@@ -144,61 +144,105 @@ app/src/main/java/com/<pkg>/
 
 ---
 
-## Step 2 — Domain Layer (Pure Kotlin, No Android)
+## Step 2 — Domain Layer (Pure Kotlin, No Android) ✅
 
 Build the business logic first so it can be unit-tested on the JVM without Robolectric.
 
-### 2.1 Define domain models
-Create the following data classes/sealed interfaces in `domain/model/`:
+### 2.1 Define domain models ✅
+Created data classes and sealed interfaces in `domain/model/`:
 
-| File | Contents |
-|---|---|
-| `UpiPayload.kt` | `data class UpiPayload(vpa, payeeName, amount: BigDecimal?, note, txnRef, rawUri)` |
-| `UpiApp.kt` | `data class UpiApp(packageName, label)` (icon resolved in UI layer) |
-| `PaymentOutcome.kt` | `sealed interface PaymentOutcome { Success, Pending, Failed, Unconfirmed }` |
-| `Transaction.kt` | `data class Transaction(id, vpa, payeeName, amountPaise, note, …, status, createdAt, updatedAt)` |
-| `TransactionStatus.kt` | `enum: INITIATED, SUCCESS, PENDING, FAILED, UNCONFIRMED, USER_CONFIRMED_PAID` |
-| `ScanError.kt` | `sealed interface ScanError { NotUpiQr, InvalidVpa, UnsupportedCurrency, InvalidAmount }` |
+| File | Contents | Status |
+|---|---|---|
+| `UpiPayload.kt` | `data class UpiPayload(vpa, payeeName, amount: BigDecimal?, note, txnRef, rawUri)` | ✅ |
+| `UpiApp.kt` | `data class UpiApp(packageName, label)` (icon resolved in UI layer) | ✅ |
+| `PaymentOutcome.kt` | `sealed interface PaymentOutcome { Success, Pending, Failed, Unconfirmed }` | ✅ |
+| `Transaction.kt` | `data class Transaction(id, vpa, payeeName, amountPaise, note, …, status, createdAt, updatedAt)` | ✅ |
+| `TransactionStatus.kt` | `enum: INITIATED, SUCCESS, PENDING, FAILED, UNCONFIRMED, USER_CONFIRMED_PAID` | ✅ |
+| `ScanError.kt` | `sealed interface ScanError { NotUpiQr, InvalidVpa, UnsupportedCurrency, InvalidAmount }` | ✅ |
 
-### 2.2 Implement `ParseUpiQr` use case
-- File: `domain/usecase/ParseUpiQr.kt`
-- Parse the raw QR string into a `UpiPayload`.
-- Validation rules:
-  - Scheme must be `upi`, host must be `pay`.
-  - `pa` (VPA) is required and must match `^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$`.
-  - `cu` must be `INR` or absent.
-  - `am` must be a positive number with ≤ 2 decimal places (if present).
-  - Strip control characters, cap field lengths.
-- Return `Result<UpiPayload>` (success or typed failure).
+### 2.2 Implement `ParseUpiQr` use case ✅
 
-> [!TIP]
-> Use `java.net.URI` instead of `android.net.Uri` inside the domain layer so the parser is testable on the JVM without Robolectric.
+- **2.2.1 Implement `ParseUpiQr.kt`** ✅
+  - File: `domain/usecase/ParseUpiQr.kt`
+  - Parses raw QR strings using `java.net.URI` without Android SDK dependencies.
+  - Validation rules enforced:
+    - Scheme must be `upi`, host must be `pay`.
+    - `pa` (VPA) is required and validated with `^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$`.
+    - `cu` must be `INR` (case-insensitive) or absent.
+    - `am` must be a positive number with <= 2 decimal places, sanity-capped at ₹10,00,000.
+    - Strips ASCII control characters and caps lengths for `pn`, `tn`, and `tr`.
+  - Returns `Result<UpiPayload>` (success or typed `ScanError` failure).
 
-### 2.3 Implement `ValidateAmount` use case
-- File: `domain/usecase/ValidateAmount.kt`
-- Accepts a user-typed string, returns a `BigDecimal` or a validation error.
-- Rules: positive, ≤ 2 decimals, below a configurable sanity cap (e.g. ₹1,00,000).
+- **2.2.2 Unit test `ParseUpiQr`** ✅
+  - File: `test/java/com/example/aurum/domain/usecase/ParseUpiQrTest.kt`
+  - 32 JVM unit tests covering: minimal QR, full merchant QR, case-insensitive scheme, absent currency, URL-encoded fields, unexpected query parameters, decimal validations, invalid schemes/hosts, malformed VPAs, non-INR currencies, negative/zero/high amounts, control character sanitization.
+  - Verified: 32 tests executed, 0 failures, 0 errors.
 
-### 2.4 Implement `BuildUpiUri` use case
-- File: `domain/usecase/BuildUpiUri.kt`
-- If the QR already had an amount → return the raw URI unchanged (preserves merchant signature).
-- Otherwise → append `am` and `cu=INR` to the raw URI.
+### 2.3 Implement `ValidateAmount` use case ✅
 
-### 2.5 Implement `InterpretPaymentResult` use case
-- File: `domain/usecase/InterpretResult.kt`
-- Parse the response `Intent` extras and the `response` query string.
-- Map `Status` (case-insensitive) to `PaymentOutcome`.
+- **2.3.1 Implement `ValidateAmount.kt`** ✅
+  - File: `domain/usecase/ValidateAmount.kt`
+  - Accepts user input string and optional configurable `maxAmount` (default ₹1,00,000).
+  - Validation rules enforced:
+    - Non-blank.
+    - Valid number.
+    - Positive (> 0).
+    - At most 2 decimal places (using `stripTrailingZeros()`).
+    - Does not exceed `maxAmount`.
+  - Returns `Result<BigDecimal>` or typed `AmountError` (`Empty`, `NotANumber`, `NotPositive`, `TooManyDecimals`, `ExceedsCap`).
 
-### 2.6 Define repository interfaces
-- `domain/usecase/GetInstalledUpiApps.kt` — interface/contract for fetching installed UPI apps.
-- Repository interfaces (can live in domain or data boundary):
-  - `UpiAppRepository` — `fun getInstalledApps(): List<UpiApp>`
-  - `TransactionRepository` — CRUD for transactions.
-  - `PreferencesRepository` — last-used app, settings.
+- **2.3.2 Unit test `ValidateAmount`** ✅
+  - File: `test/java/com/example/aurum/domain/usecase/ValidateAmountTest.kt`
+  - 21 JVM unit tests covering: whole numbers, 1 & 2 decimals, trailing zeros, minimum ₹0.01, maximum ₹1,00,000, custom cap, whitespace stripping, blank strings, non-numeric strings, 0 / 0.00, negative values, 3+ decimals, amounts exceeding cap.
+  - Verified: 21 tests executed, 0 failures, 0 errors.
 
-### ✅ Acceptance
-- All use cases have passing JVM unit tests (no Android emulator needed).
-- Parser tested with: valid QR, missing `pa`, bad VPA, bad amount, non-INR, URL-encoded characters, extra params, edge-case strings.
+### 2.4 Implement `BuildUpiUri` use case ✅
+
+- **2.4.1 Implement `BuildUpiUri.kt`** ✅
+  - File: `domain/usecase/BuildUpiUri.kt`
+  - If QR already contains an amount (`payload.amount != null`), returns `payload.rawUri` unchanged to preserve merchant cryptographic signatures and parameters.
+  - If no amount in QR, validates `userAmount > 0`, formats to 2 decimal places, and appends `am=<value>&cu=INR`.
+
+- **2.4.2 Unit test `BuildUpiUri`** ✅
+  - File: `test/java/com/example/aurum/domain/usecase/BuildUpiUriTest.kt`
+  - 10 JVM unit tests covering: raw URI preservation when amount preset, user amount formatting, query parameter appending, invalid null/zero/negative amounts.
+  - Verified: 10 tests executed, 0 failures, 0 errors.
+
+### 2.5 Implement `InterpretPaymentResult` use case ✅
+
+- **2.5.1 Implement `InterpretPaymentResult.kt`** ✅
+  - File: `domain/usecase/InterpretPaymentResult.kt`
+  - Accepts a map of key-value response extras from the UPI app result.
+  - Case-insensitive status mapping: `SUCCESS` -> `PaymentOutcome.Success`, `FAILURE`/`FAILED` -> `PaymentOutcome.Failed`, `PENDING`/`SUBMITTED` -> `PaymentOutcome.Pending`, unknown/empty -> `PaymentOutcome.Unconfirmed`.
+  - Extracts `txnId`, `approvalRefNo`, `responseCode`, and `message`.
+
+- **2.5.2 Unit test `InterpretPaymentResult`** ✅
+  - File: `test/java/com/example/aurum/domain/usecase/InterpretPaymentResultTest.kt`
+  - 17 JVM unit tests covering: SUCCESS, FAILURE, FAILED, PENDING, SUBMITTED, UNCONFIRMED, case insensitivity, empty map, null values, blank fields.
+  - Verified: 17 tests executed, 0 failures, 0 errors.
+
+### 2.6 Define repository interfaces & query use case ✅
+
+- **2.6.1 Create `TransactionRepository.kt`** ✅
+  - File: `domain/repository/TransactionRepository.kt`
+  - CRUD contracts: `insert(transaction)`, `updateStatus(...)`, `getAllTransactions(): Flow<List<Transaction>>`, `getInitiatedTransactions(): List<Transaction>`, `deleteAll()`.
+
+- **2.6.2 Create `UpiAppRepository.kt`** ✅
+  - File: `domain/repository/UpiAppRepository.kt`
+  - Contract: `getInstalledApps(): List<UpiApp>`.
+
+- **2.6.3 Create `PreferencesRepository.kt`** ✅
+  - File: `domain/repository/PreferencesRepository.kt`
+  - DataStore contracts: `getLastUsedUpiApp(): Flow<String?>`, `setLastUsedUpiApp(packageName)`.
+
+- **2.6.4 Create `GetInstalledUpiApps.kt` use case** ✅
+  - File: `domain/usecase/GetInstalledUpiApps.kt`
+  - Injected domain use case delegating to `UpiAppRepository`.
+
+### ✅ Step 2 Acceptance Complete
+- [x] All 80 domain JVM unit tests passing without errors or failures (0 emulator/Robolectric dependencies).
+- [x] Comprehensive test matrix covering valid/invalid QR, VPA formats, amounts, currencies, URI preservation, status interpretations, and boundary conditions.
+- [x] All repository contracts cleanly isolated in pure Kotlin domain layer.
 
 ---
 
