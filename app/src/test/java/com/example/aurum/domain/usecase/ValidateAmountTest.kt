@@ -99,6 +99,17 @@ class ValidateAmountTest {
         assertError("₹100", AmountError.NotANumber)
     }
 
+    @Test
+    fun `scientific notation returns NotANumber`() {
+        assertError("1e2", AmountError.NotANumber)
+        assertError("1E+4", AmountError.NotANumber)
+    }
+
+    @Test
+    fun `leading plus sign returns NotANumber`() {
+        assertError("+50", AmountError.NotANumber)
+    }
+
     // ── Failure: NotPositive ──────────────────────────────────────────────────
 
     @Test

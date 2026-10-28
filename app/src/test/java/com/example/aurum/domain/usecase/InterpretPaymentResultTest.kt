@@ -161,5 +161,51 @@ class InterpretPaymentResultTest {
         assertEquals("00", outcome.responseCode)
         assertEquals("R456", outcome.approvalRefNo)
     }
+
+    @Test
+    fun `raw response query string is unpacked automatically`() {
+        val rawResponse = "Status=SUCCESS&txnId=TXN789&responseCode=00&ApprovalRefNo=RRN12345"
+        val result = interpret(mapOf("response" to rawResponse))
+
+        assertTrue(result is PaymentOutcome.Success)
+        val outcome = result as PaymentOutcome.Success
+        assertEquals("TXN789", outcome.txnId)
+        assertEquals("00", outcome.responseCode)
+        assertEquals("RRN12345", outcome.approvalRefNo)
+    }
+
+    @Test
+    fun `short status codes S, F, P map to respective outcomes`() {
+        assertTrue(interpret(mapOf("Status" to "S")) is PaymentOutcome.Success)
+        assertTrue(interpret(mapOf("Status" to "F")) is PaymentOutcome.Failed)
+        assertTrue(interpret(mapOf("Status" to "P")) is PaymentOutcome.Pending)
+    }
+
+    @Test
+    fun `null and na string literals are sanitized to null`() {
+        val result = interpret(
+            mapOf(
+                "Status" to "FAILURE",
+                "txnId" to "null",
+                "responseCode" to "NA",
+                "message" to "null"
+            )
+        )
+        val outcome = result as PaymentOutcome.Failed
+        assertNull(outcome.responseCode)
+        assertNull(outcome.message)
+    }
+
+    @Test
+    fun `txnRef is used as fallback when approvalRefNo is absent`() {
+        val result = interpret(
+            mapOf(
+                "Status" to "SUCCESS",
+                "txnRef" to "FALLBACK_REF"
+            )
+        )
+        val outcome = result as PaymentOutcome.Success
+        assertEquals("FALLBACK_REF", outcome.approvalRefNo)
+    }
 }
 

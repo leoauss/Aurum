@@ -15,6 +15,6 @@ import javax.inject.Inject
 class GetInstalledUpiApps @Inject constructor(
     private val upiAppRepository: UpiAppRepository,
 ) {
-    operator fun invoke(): List<UpiApp> = upiAppRepository.getInstalledApps()
+    suspend operator fun invoke(): List<UpiApp> = upiAppRepository.getInstalledApps()
 }
 

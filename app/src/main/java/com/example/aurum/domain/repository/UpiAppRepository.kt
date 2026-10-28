@@ -16,6 +16,6 @@ interface UpiAppRepository {
      * The list is sorted so the last-used app (if known) appears first,
      * followed by remaining apps in alphabetical order.
      */
-    fun getInstalledApps(): List<UpiApp>
+    suspend fun getInstalledApps(): List<UpiApp>
 }
 

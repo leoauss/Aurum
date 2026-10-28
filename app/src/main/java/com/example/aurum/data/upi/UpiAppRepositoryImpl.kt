@@ -9,6 +9,9 @@ import com.example.aurum.domain.model.UpiApp
 import com.example.aurum.domain.repository.PreferencesRepository
 import com.example.aurum.domain.repository.UpiAppRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,7 +19,8 @@ import javax.inject.Singleton
  * Android [PackageManager]-backed implementation of [UpiAppRepository].
  *
  * Queries the system for any applications that register an activity capable of
- * handling a `upi://pay` deep link intent.
+ * handling a `upi://pay` deep link intent. Runs on [Dispatchers.IO] to avoid
+ * blocking the main thread during binder IPC and preference lookups.
  */
 @Singleton
 class UpiAppRepositoryImpl @Inject constructor(
@@ -24,7 +28,7 @@ class UpiAppRepositoryImpl @Inject constructor(
     private val preferencesRepository: PreferencesRepository
 ) : UpiAppRepository {
 
-    override fun getInstalledApps(): List<UpiApp> {
+    override suspend fun getInstalledApps(): List<UpiApp> = withContext(Dispatchers.IO) {
         val packageManager = context.packageManager
         val upiIntent = Intent(Intent.ACTION_VIEW, Uri.parse(UPI_PAY_URI_SCHEME))
 
@@ -39,8 +43,9 @@ class UpiAppRepositoryImpl @Inject constructor(
         }
 
         val lastUsedPackage = preferencesRepository.lastUsedAppCached
+            ?: preferencesRepository.getLastUsedUpiApp().firstOrNull()
 
-        return resolveInfos
+        resolveInfos
             .filter { resolveInfo ->
                 // Filter out self if the current app registers upi://pay
                 resolveInfo.activityInfo.packageName != context.packageName

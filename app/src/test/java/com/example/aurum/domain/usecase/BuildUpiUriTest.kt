@@ -76,12 +76,30 @@ class BuildUpiUriTest {
     }
 
     @Test
-    fun `cu=INR is always appended`() {
+    fun `cu=INR is appended when not present`() {
         val rawUri = "upi://pay?pa=user@upi"
         val payload = UpiPayload(vpa = "user@upi", rawUri = rawUri)
 
         val result = buildUpiUri(payload, userAmount = BigDecimal("50"))
         assertTrue(result.contains("cu=INR"))
+    }
+
+    @Test
+    fun `cu=INR is not duplicated when already present in rawUri`() {
+        val rawUri = "upi://pay?pa=merchant@upi&pn=Shop&cu=INR"
+        val payload = UpiPayload(vpa = "merchant@upi", payeeName = "Shop", rawUri = rawUri)
+
+        val result = buildUpiUri(payload, userAmount = BigDecimal("100"))
+        assertEquals("upi://pay?pa=merchant@upi&pn=Shop&cu=INR&am=100.00", result)
+    }
+
+    @Test
+    fun `amount with trailing zeros is formatted without arithmetic exception`() {
+        val rawUri = "upi://pay?pa=merchant@upi"
+        val payload = UpiPayload(vpa = "merchant@upi", rawUri = rawUri)
+
+        val result = buildUpiUri(payload, userAmount = BigDecimal("50.000"))
+        assertEquals("upi://pay?pa=merchant@upi&am=50.00&cu=INR", result)
     }
 
     @Test

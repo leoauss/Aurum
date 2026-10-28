@@ -111,7 +111,15 @@ class ParseUpiQr @Inject constructor() {
             val rawValue = if (idx >= 0) pair.substring(idx + 1) else ""
 
             val key = urlDecode(rawKey).lowercase()
-            val value = urlDecode(rawValue)
+            val value = if (key == "pa") {
+                try {
+                    URLDecoder.decode(rawValue.replace("+", "%2B"), StandardCharsets.UTF_8.name())
+                } catch (_: Exception) {
+                    rawValue
+                }
+            } else {
+                urlDecode(rawValue)
+            }
             if (key.isNotEmpty() && !map.containsKey(key)) {
                 map[key] = value
             }

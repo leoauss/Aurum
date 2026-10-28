@@ -28,6 +28,11 @@ class ValidateAmount @Inject constructor() {
             return failure(AmountError.Empty)
         }
 
+        // Reject scientific notation (e.g. 1e2), leading plus (+50), and invalid characters
+        if (!DECIMAL_NUMBER_REGEX.matches(trimmed)) {
+            return failure(AmountError.NotANumber)
+        }
+
         val value = trimmed.toBigDecimalOrNull()
             ?: return failure(AmountError.NotANumber)
 
@@ -51,6 +56,7 @@ class ValidateAmount @Inject constructor() {
 
     companion object {
         val DEFAULT_MAX_AMOUNT: BigDecimal = BigDecimal("100000") // ₹1,00,000
+        private val DECIMAL_NUMBER_REGEX = Regex("""^-?\d+(\.\d+)?$""")
     }
 }
 
