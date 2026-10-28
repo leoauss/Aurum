@@ -46,6 +46,11 @@ interface TransactionRepository {
     suspend fun getInitiatedTransactions(): List<Transaction>
 
     /**
+     * Retrieves a single transaction by its unique [id], or null if not found.
+     */
+    suspend fun getTransactionById(id: String): Transaction?
+
+    /**
      * Permanently deletes all transactions from storage.
      */
     suspend fun deleteAll()

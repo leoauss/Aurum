@@ -44,6 +44,10 @@ class TransactionRepositoryImpl @Inject constructor(
         return transactionDao.getInitiatedTransactions().map { it.toDomain() }
     }
 
+    override suspend fun getTransactionById(id: String): Transaction? {
+        return transactionDao.getTransactionById(id)?.toDomain()
+    }
+
     override suspend fun deleteAll() {
         transactionDao.deleteAll()
     }

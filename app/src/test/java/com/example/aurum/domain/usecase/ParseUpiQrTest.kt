@@ -3,6 +3,7 @@ package com.example.aurum.domain.usecase
 import com.example.aurum.domain.model.ScanError
 import com.example.aurum.domain.model.ScanException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -36,7 +37,7 @@ class ParseUpiQrTest {
     @Test
     fun `valid merchant QR with all fields succeeds`() {
         val result = parseUpiQr(
-            "upi://pay?pa=merchant@upi&pn=Merchant%20Name&am=99.50&cu=INR&tn=Test%20Payment&tr=TXN123"
+            "upi://pay?pa=merchant@upi&pn=Merchant%20Name&am=99.50&cu=INR&tn=Test%20Payment&tr=TXN123&mc=5411"
         )
         assertTrue(result.isSuccess)
         val payload = result.getOrThrow()
@@ -45,6 +46,20 @@ class ParseUpiQrTest {
         assertEquals(BigDecimal("99.50"), payload.amount)
         assertEquals("Test Payment", payload.note)
         assertEquals("TXN123", payload.txnRef)
+        assertEquals("5411", payload.mcc)
+        assertTrue(payload.isMerchant)
+    }
+
+    @Test
+    fun `personal QR with mc=0000 or absent mc is marked as non-merchant`() {
+        val resultWithoutMc = parseUpiQr("upi://pay?pa=friend@upi&pn=Friend")
+        assertTrue(resultWithoutMc.isSuccess)
+        assertFalse(resultWithoutMc.getOrThrow().isMerchant)
+
+        val resultZeroMc = parseUpiQr("upi://pay?pa=friend@upi&pn=Friend&mc=0000")
+        assertTrue(resultZeroMc.isSuccess)
+        assertEquals("0000", resultZeroMc.getOrThrow().mcc)
+        assertFalse(resultZeroMc.getOrThrow().isMerchant)
     }
 
     @Test

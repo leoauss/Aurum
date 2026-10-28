@@ -90,6 +90,12 @@ class ParseUpiQr @Inject constructor() {
             ?.take(MAX_TXN_REF_LENGTH)
             ?.takeIf { it.isNotEmpty() }
 
+        val mcc = params["mc"]
+            ?.let(::sanitizeControlChars)
+            ?.trim()
+            ?.take(4)
+            ?.takeIf { it.isNotEmpty() }
+
         return Result.success(
             UpiPayload(
                 vpa = vpa,
@@ -97,6 +103,7 @@ class ParseUpiQr @Inject constructor() {
                 amount = amount,
                 note = note,
                 txnRef = txnRef,
+                mcc = mcc,
                 rawUri = trimmed
             )
         )

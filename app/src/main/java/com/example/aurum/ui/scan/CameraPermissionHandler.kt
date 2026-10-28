@@ -27,9 +27,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,13 +66,16 @@ fun CameraPermissionHandler(
     val activity = context as? Activity
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    var hasRequestedInitialPrompt by rememberSaveable { mutableStateOf(false) }
+
     var permissionStatus by remember {
-        mutableStateOf(checkCameraPermission(context, activity))
+        mutableStateOf(checkCameraPermission(context, activity, hasRequestedInitialPrompt))
     }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        hasRequestedInitialPrompt = true
         permissionStatus = if (isGranted) {
             CameraPermissionStatus.GRANTED
         } else {
@@ -82,11 +87,19 @@ fun CameraPermissionHandler(
         }
     }
 
+    // Auto-prompt system permission dialog on very first launch
+    LaunchedEffect(Unit) {
+        if (!hasRequestedInitialPrompt && permissionStatus != CameraPermissionStatus.GRANTED) {
+            hasRequestedInitialPrompt = true
+            launcher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     // Refresh permission status when app resumes (e.g. returning from app settings)
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                permissionStatus = checkCameraPermission(context, activity)
+                permissionStatus = checkCameraPermission(context, activity, hasRequestedInitialPrompt)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -206,7 +219,11 @@ private fun PermissionRationaleContent(
     }
 }
 
-private fun checkCameraPermission(context: Context, activity: Activity?): CameraPermissionStatus {
+private fun checkCameraPermission(
+    context: Context,
+    activity: Activity?,
+    hasRequestedPrompt: Boolean
+): CameraPermissionStatus {
     val granted = ContextCompat.checkSelfPermission(
         context,
         Manifest.permission.CAMERA
@@ -216,7 +233,8 @@ private fun checkCameraPermission(context: Context, activity: Activity?): Camera
         granted -> CameraPermissionStatus.GRANTED
         activity != null && ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.CAMERA) ->
             CameraPermissionStatus.DENIED_RATIONALE
-        else -> CameraPermissionStatus.DENIED_RATIONALE // Default before first prompt
+        hasRequestedPrompt -> CameraPermissionStatus.PERMANENTLY_DENIED
+        else -> CameraPermissionStatus.DENIED_RATIONALE
     }
 }
 

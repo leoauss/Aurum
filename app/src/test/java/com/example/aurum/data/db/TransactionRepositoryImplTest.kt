@@ -98,6 +98,19 @@ class TransactionRepositoryImplTest {
         assertTrue(all.isEmpty())
     }
 
+    @Test
+    fun `getTransactionById returns correct transaction or null`() = runBlocking {
+        val txn = Transaction(id = "find-me", vpa = "find@upi", amountPaise = 500L)
+        repository.insert(txn)
+
+        val found = repository.getTransactionById("find-me")
+        assertEquals("find-me", found?.id)
+        assertEquals("find@upi", found?.vpa)
+
+        val notFound = repository.getTransactionById("unknown")
+        org.junit.Assert.assertNull(notFound)
+    }
+
     private class FakeTransactionDao : TransactionDao {
         private val storage = mutableMapOf<String, TransactionEntity>()
         private val stateFlow = MutableStateFlow<List<TransactionEntity>>(emptyList())

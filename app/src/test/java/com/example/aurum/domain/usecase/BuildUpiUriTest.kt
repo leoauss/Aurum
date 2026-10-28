@@ -114,6 +114,35 @@ class BuildUpiUriTest {
         assertEquals("upi", uri.scheme)
     }
 
+    @Test
+    fun `existing am=0 or am=0_00 in rawUri is stripped and not duplicated`() {
+        val rawUri = "upi://pay?pa=merchant@upi&pn=Shop&am=0&cu=INR"
+        val payload = UpiPayload(vpa = "merchant@upi", payeeName = "Shop", rawUri = rawUri)
+
+        val result = buildUpiUri(payload, userAmount = BigDecimal("150.00"))
+        assertEquals("upi://pay?pa=merchant@upi&pn=Shop&cu=INR&am=150.00", result)
+    }
+
+    @Test
+    fun `mode=02 and sign are stripped when appending user amount`() {
+        val rawUri = "upi://pay?pa=merchant@upi&mode=02&sign=MEYCIQ123&cu=INR"
+        val payload = UpiPayload(vpa = "merchant@upi", rawUri = rawUri)
+
+        val result = buildUpiUri(payload, userAmount = BigDecimal("50"))
+        assertTrue(!result.contains("mode=02"))
+        assertTrue(!result.contains("sign="))
+        assertTrue(result.contains("am=50.00"))
+    }
+
+    @Test
+    fun `mode=04 is appended for merchant QRs to signal official app intent`() {
+        val rawUri = "upi://pay?pa=merchant@upi&mc=5411&cu=INR"
+        val payload = UpiPayload(vpa = "merchant@upi", mcc = "5411", rawUri = rawUri)
+
+        val result = buildUpiUri(payload, userAmount = BigDecimal("100"))
+        assertTrue(result.contains("mode=04"))
+    }
+
     // ── Error cases ───────────────────────────────────────────────────────────
 
     @Test(expected = IllegalArgumentException::class)

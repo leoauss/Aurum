@@ -49,6 +49,7 @@ fun CameraPreview(
 
     var cameraInstance by remember { mutableStateOf<Camera?>(null) }
     var previewViewInstance by remember { mutableStateOf<PreviewView?>(null) }
+    var cameraProviderInstance by remember { mutableStateOf<ProcessCameraProvider?>(null) }
 
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
@@ -61,8 +62,13 @@ fun CameraPreview(
         }
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(lifecycleOwner) {
         onDispose {
+            try {
+                cameraProviderInstance?.unbindAll()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             cameraExecutor.shutdown()
         }
     }
@@ -109,6 +115,7 @@ fun CameraPreview(
                     val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
                     cameraProviderFuture.addListener({
                         val cameraProvider = cameraProviderFuture.get()
+                        cameraProviderInstance = cameraProvider
 
                         val preview = Preview.Builder()
                             .build()

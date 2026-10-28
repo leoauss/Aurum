@@ -20,9 +20,19 @@ class BuildUpiUri @Inject constructor() {
         }
 
         val amountStr = userAmount.setScale(2, RoundingMode.UNNECESSARY).toPlainString()
-        val baseUri = payload.rawUri.trim()
-        val separator = if (baseUri.contains('?')) "&" else "?"
+        var baseUri = payload.rawUri.trim()
+
+        // Strip any existing empty or zero amount (e.g. am=0 or am=0.00)
+        baseUri = removeQueryParam(baseUri, "am")
+
+        // Strip digital signature if present, as user-provided amount invalidates it
+        baseUri = removeQueryParam(baseUri, "sign")
+
+        // Strip static offline QR mode (mode=02) which triggers gallery QR restrictions in PhonePe
+        baseUri = removeQueryParam(baseUri, "mode")
+
         val hasCurrency = CURRENCY_REGEX.containsMatchIn(baseUri)
+        val separator = if (baseUri.contains('?')) "&" else "?"
 
         return buildString {
             append(baseUri)
@@ -31,7 +41,22 @@ class BuildUpiUri @Inject constructor() {
             if (!hasCurrency) {
                 append("&cu=INR")
             }
+            if (payload.isMerchant) {
+                append("&mode=04")
+            }
         }
+    }
+
+    private fun removeQueryParam(uri: String, paramKey: String): String {
+        val regex = Regex("(?i)([?&])$paramKey=[^&]*(&)?")
+        val replaced = uri.replace(regex) { matchResult ->
+            val prefix = matchResult.groupValues[1]
+            val suffix = matchResult.groupValues[2]
+            if (prefix == "?" && suffix == "&") "?"
+            else if (suffix == "&") "&"
+            else ""
+        }
+        return replaced.trimEnd('?', '&')
     }
 
     companion object {
